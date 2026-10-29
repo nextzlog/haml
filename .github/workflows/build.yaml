@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --no-default-features --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+      - run: cargo test --workspace --all-features
+
+  Linux:
+    needs: Test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release -p haml-ui
+      - run: |
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          [ "$(head -c 4 appimagetool | od -An -c | tr -d ' ')" = '177ELF' ] || { echo "appimagetool is not an ELF binary"; exit 1; }
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 APPIMAGETOOL=$PWD/appimagetool scripts/linux.sh HaML haml
+          cp dist/haml-x86_64.AppImage .
+          gh release create nightly --prerelease --title nightly --notes "Built from master." || true
+          gh release upload nightly haml-x86_64.AppImage --clobber
+
+  MacOS:
+    needs: Test
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - run: cargo build --release -p haml-ui --target aarch64-apple-darwin
+      - run: cargo build --release -p haml-ui --target x86_64-apple-darwin
+      - run: |
+          scripts/macos.sh HaML haml \
+            target/aarch64-apple-darwin/release/haml \
+            target/x86_64-apple-darwin/release/haml
+          ln -s /Applications dist/Applications
+          for n in 1 2 3; do
+            hdiutil create -volname HaML -srcfolder dist -ov -format UDZO haml.dmg && break
+            [ $n = 3 ] && exit 1
+            sleep 10
+          done
+          gh release create nightly --prerelease --title nightly --notes "Built from master." || true
+          gh release upload nightly haml.dmg --clobber
+
+  Windows:
+    needs: Test
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release -p haml-ui
+      - run: |
+          copy target\release\haml.exe haml.exe
+          gh release create nightly --prerelease --title nightly --notes "Built from master." || ver > nul
+          gh release upload nightly haml.exe --clobber
+        shell: cmd

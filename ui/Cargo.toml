@@ -1,0 +1,29 @@
+[package]
+name = "haml-ui"
+description = "Rig control and SO2R panels and application."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = ["app"]
+app = ["dep:eframe", "haml/serial", "haml/hid"]
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "haml"
+path = "src/main.rs"
+required-features = ["app"]
+
+[dependencies]
+haml = { workspace = true, features = ["remote"] }
+egui.workspace = true
+eframe = { workspace = true, optional = true }
+
+[dev-dependencies]
+egui = { workspace = true, features = ["default_fonts"] }
+egui_kittest.workspace = true
