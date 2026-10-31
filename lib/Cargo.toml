@@ -1,0 +1,20 @@
+[package]
+name = "haml"
+description = "Rust library for amateur-radio devices: CAT rigs, CW keyers, SO2R boxes and a single TX arbiter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+serial = ["dep:serialport"]
+hid = ["dep:hidapi"]
+remote = []
+
+[dependencies]
+serialport = { version = "4.7", default-features = false, optional = true }
+hidapi = { version = "2.6", default-features = false, features = ["linux-native-basic-udev", "windows-native"], optional = true }
+
+[[test]]
+name = "remote"
+required-features = ["remote"]
